@@ -17,6 +17,7 @@ Die erste Veröffentlichung. Netzinfo merkt sich jedes Netz, in dem dein Mac war
 - Die Kommandozeile `netzinfo` läuft auf dem Mac und unter Linux. `--erklaer` sagt auf Deutsch, was im Netz passiert.
 - Kein Server, kein Konto, keine Telemetrie. Das Fritz!Box-Passwort liegt nur im Schlüsselbund.
 - Die App gibt es auch für Linux (x86_64) als `.deb` und AppImage. Funktionen, die nur der Mac kann, melden unter Linux „Das gibt es unter Linux noch nicht.“, die Tastenkürzel nutzen dort Strg statt ⌘.
+- `netzinfo hier` liest unter Linux auch dhclient-Leases, erkennt fest eingestellte Adressen und nennt die Domain aus `resolv.conf`.
 
 ### Installieren
 

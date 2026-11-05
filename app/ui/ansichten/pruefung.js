@@ -232,7 +232,7 @@
     // One main action per area: with the portal hint its button leads.
     knopf.classList.toggle('haupt', z.portal?.status !== 'PortalVermutet');
     knopf.parentElement.hidden = unbekannt || (z.fehler && !z.laeuft); // there the empty state or the error card carries the button
-    knopf.replaceChildren(z.laeuft ? 'Prüfe …' : 'Jetzt prüfen', ...(z.laeuft ? [] : [el('span', { class: 'kbd', 'aria-hidden': 'true', text: '⌘R' })]));
+    knopf.replaceChildren(z.laeuft ? 'Prüfe …' : 'Jetzt prüfen', ...(z.laeuft ? [] : [el('span', { class: 'kbd', 'aria-hidden': 'true', text: Netz.taste('R') })]));
     const fuell = (ort, ...k) => ort.replaceChildren(...k.flat().filter((x) => x != null && x !== false));
     fuell(kopf,
       portalHinweis(),
@@ -310,7 +310,7 @@
 
   // ⌘R means „Jetzt prüfen“ here; runs before the shared handler in app.js.
   document.addEventListener('keydown', (e) => {
-    if (e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'r'
+    if (Netz.istTaste(e) && e.key.toLowerCase() === 'r'
       && document.getElementById('tab-pruefung')?.getAttribute('aria-selected') === 'true') {
       e.preventDefault();
       e.stopImmediatePropagation();

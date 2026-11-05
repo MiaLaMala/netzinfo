@@ -16,18 +16,20 @@ Die erste Veröffentlichung. Netzinfo merkt sich jedes Netz, in dem dein Mac war
 - Die Wache in der Menüleiste prüft nach jedem Netzwechsel und schickt eine Mitteilung, wenn etwas auffällt.
 - Die Kommandozeile `netzinfo` läuft auf dem Mac und unter Linux. `--erklaer` sagt auf Deutsch, was im Netz passiert.
 - Kein Server, kein Konto, keine Telemetrie. Das Fritz!Box-Passwort liegt nur im Schlüsselbund.
+- Die App gibt es auch für Linux (x86_64) als `.deb` und AppImage. Funktionen, die nur der Mac kann, melden unter Linux „Das gibt es unter Linux noch nicht.“, die Tastenkürzel nutzen dort Strg statt ⌘.
 
 ### Installieren
 
 1. `Netzinfo_0.1.0_aarch64.dmg` laden, öffnen und Netzinfo in den Ordner „Programme“ ziehen.
 2. Starten. macOS warnt, weil die App nicht notarisiert ist. Warnung mit „Fertig“ schließen, dann Systemeinstellungen, Datenschutz & Sicherheit, ganz nach unten, „Trotzdem öffnen“.
-3. Für die Kommandozeile gibt es je ein Archiv für den Mac, für Linux x86_64 und für Linux arm64 (Raspberry Pi). Prüfsummen stehen in `SHA256SUMS`.
+3. Unter Linux: `.deb` mit `sudo apt install ./Netzinfo_0.1.0_amd64.deb` oder das AppImage ausführbar machen und starten (braucht FUSE 2, siehe README).
+4. Für die Kommandozeile gibt es je ein Archiv für den Mac, für Linux x86_64 und für Linux arm64 (Raspberry Pi). Prüfsummen stehen in `SHA256SUMS`.
 
 Die ganze Anleitung steht im [README](https://github.com/MiaLaMala/netzinfo#installieren).
 
 ### Bekannt fehlt
 
-- Die App gibt es nur für den Mac mit Apple Silicon und macOS 13 oder neuer. Unter Linux gibt es nur die Kommandozeile, Windows gibt es nicht.
+- Die Mac-App gibt es nur für Apple Silicon und macOS 13 oder neuer, Windows gibt es nicht. Die Linux-App lief bisher nur auf einem Debian-13-Server unter Xvfb, nicht auf einem Desktop.
 - Die App ist nur ad hoc signiert, nicht notarisiert. Darum der Umweg über „Trotzdem öffnen“. Nach einem Update kann macOS die Freigabe für „Lokales Netzwerk“ noch einmal abfragen.
 - Die Linux-Fassung lief bisher nur in der CI, nicht von Hand auf einem Server oder Raspberry Pi.
 

@@ -8,7 +8,7 @@
   // Fehlt der Befehl (kein Mac), ist die Gruppe zu Recht weg. Jeder andere Fehler (z. B. Schlüsselbund) wird gezeigt.
   const fehltBefehl = (f) => /not found|nicht gefunden|unknown command/i.test(Netz.text(f));
   const fehlerGruppe = (id, titel, f) => el('section', { class: 'gruppe', 'aria-labelledby': id },
-    el('h3', { id, text: titel }), el('div', { class: 'liste block' }, meldung(Netz.text(f))));
+    el('h3', { id, text: titel }), el('div', { class: 'liste block' }, Netz.nurMac(f) ? meldung(Netz.LINUX_NOCH_NICHT, 'grau') : meldung(Netz.text(f))));
 
   function zeile(start, nr, hier) {
     let n = start;

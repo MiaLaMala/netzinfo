@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   # Kommandozeile für Linux, statisch gegen musl gebaut: läuft ohne passende glibc auf jeder Distribution,
-  # arm64 auch auf dem Raspberry Pi mit 64-Bit-System. Die App gibt es nur für den Mac.
+  # arm64 auch auf dem Raspberry Pi mit 64-Bit-System. Die Linux-App baut der Job `linux-app`.
   linux:
     strategy:
       matrix:
@@ -51,8 +51,51 @@ jobs:
           name: linux-${{ matrix.ziel }}
           path: out/
 
+  # Linux-App als .deb und AppImage. Ubuntu 22.04 mit Absicht: Die glibc der Build-Maschine legt fest, wie alt das
+  # System der Nutzer sein darf, und 22.04 hat als älteste Basis schon WebKitGTK 4.1 (Tauri-Doku, Debian-Seite).
+  linux-app:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Paketliste der Tauri-Doku (Debian) plus patchelf und xdg-utils für das AppImage.
+      - run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libwebkit2gtk-4.1-dev build-essential file libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - name: Datenbank für Land und Anbieter holen
+        run: sh tools/ipdb-bauen.sh ipdb
+
+      # Dieselbe CLI-Version wie im Mac-Job. app/tauri.linux.conf.json setzt die Ziele und überschreibt die Mac-Ziele.
+      - name: App bauen (.deb, AppImage)
+        run: npx --yes @tauri-apps/cli@2.12.4 build --bundles deb,appimage
+        working-directory: app
+
+      # Ausgaben verworfen, nur der Exit-Code zählt. Das AppImage wird entpackt statt gestartet (FUSE fehlt auf Runnern).
+      - name: Kurztest
+        run: |
+          deb=$(ls target/release/bundle/deb/*.deb)
+          dpkg-deb --info "$deb"
+          dpkg-deb --contents "$deb" | grep -q ' usr/bin/netzinfo-app$'
+          dpkg-deb --contents "$deb" | grep -q ' usr/lib/Netzinfo/ipdb/'
+          img=$(ls "$PWD"/target/release/bundle/appimage/*.AppImage)
+          cd "$RUNNER_TEMP" && "$img" --appimage-extract > /dev/null
+          test -x squashfs-root/usr/bin/netzinfo-app
+          test -d squashfs-root/usr/lib/Netzinfo/ipdb
+
+      - name: Dateien zusammenstellen
+        run: |
+          mkdir out
+          cp target/release/bundle/deb/*.deb target/release/bundle/appimage/*.AppImage out/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-app # der Mac-Job holt alles, was mit linux- beginnt
+          path: out/
+
   mac:
-    needs: linux # holt die Linux-Archive, damit SHA256SUMS alle Dateien abdeckt
+    needs: [linux, linux-app] # holt die Linux-Dateien, damit SHA256SUMS alle Dateien abdeckt
     runs-on: macos-latest # Apple Silicon (arm64)
     steps:
       - uses: actions/checkout@v7

@@ -647,6 +647,8 @@
       try {
         v = await frist('last_vorab', undefined, 15);
         hinweis.textContent = v.hinweis ?? '';
+        // Apples networkQuality gibt es nur auf dem Mac: Knopf und Hinweis ehrlich machen.
+        if (!Netz.mac) { hinweis.textContent = 'Die Messung unter Last gibt es unter Linux noch nicht.'; knopf.disabled = true; }
         hotspot = !!v.hotspot;
         frage = v.hotspot_frage ?? '';
         zeigeVerlauf(v.verlauf ?? []);

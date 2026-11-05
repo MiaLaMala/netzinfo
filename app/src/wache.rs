@@ -102,8 +102,14 @@ fn mitteilen(app: &AppHandle, titel: &str, text: &str) {
 /// "29.10.2026, 11:06" in local time. `date` knows the time zone, so no new dependency.
 // ponytail: one process per check; libc localtime_r if that ever matters.
 fn ortszeit(secs: u64) -> String {
+    // BSD `date -r <seconds>`, GNU `date -d @<seconds>` (there `-r` wants a file).
+    let (flag, wert) = if cfg!(target_os = "macos") {
+        ("-r", secs.to_string())
+    } else {
+        ("-d", format!("@{secs}"))
+    };
     std::process::Command::new("date")
-        .args(["-r", &secs.to_string(), "+%d.%m.%Y, %H:%M"])
+        .args([flag, &wert, "+%d.%m.%Y, %H:%M"])
         .output()
         .ok()
         .filter(|o| o.status.success())
@@ -308,7 +314,13 @@ fn autostart_pfad() -> Result<std::path::PathBuf, String> {
     Ok(std::path::Path::new(&home).join(format!("Library/LaunchAgents/{KENNUNG}.plist")))
 }
 
+/// The login item is a launchd plist; other systems have nothing to write (the UI shows the sentence as a hint).
+const NUR_MAC_START: &str = "Den Start mit der Anmeldung gibt es unter Linux noch nicht.";
+
 pub fn autostart_lesen() -> Result<bool, String> {
+    if cfg!(not(target_os = "macos")) {
+        return Err(NUR_MAC_START.into());
+    }
     Ok(autostart_pfad()?.exists())
 }
 
@@ -326,6 +338,9 @@ fn entwicklung(exe: &std::path::Path) -> bool {
 
 /// Writes or removes the login item. Takes effect at the next login.
 pub fn autostart_setzen(an: bool) -> Result<bool, String> {
+    if cfg!(not(target_os = "macos")) {
+        return Err(NUR_MAC_START.into());
+    }
     let pfad = autostart_pfad()?;
     if an {
         let exe = std::env::current_exe()

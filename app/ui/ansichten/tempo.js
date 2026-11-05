@@ -28,7 +28,7 @@
     const funk = e.kabel
       ? feld('WLAN', 'Kabel', 'kein WLAN dazwischen')
       : feld('WLAN', w ? rate(w.nutz_mbit) : '–', w ? `${ok(w.rate_mbit) ? `Senderate ${rate(w.rate_mbit)}` : 'Senderate unbekannt'}${w.band ? `, ${w.band}` : ''}` : 'nicht ermittelt', e.engpass === 'wlan');
-    const mac = feld('Am Mac', rate(e.mac_down_mbit), ok(e.mac_down_mbit) ? 'Download, gemessen' : 'noch nicht gemessen');
+    const mac = feld(Netz.mac ? 'Am Mac' : 'Am Rechner', rate(e.mac_down_mbit), ok(e.mac_down_mbit) ? 'Download, gemessen' : 'noch nicht gemessen');
     return el('dl', { class: 'engpass-zahlen' }, leitung, funk, mac);
   }
 

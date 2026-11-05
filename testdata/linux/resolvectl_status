@@ -1,0 +1,16 @@
+Global
+           Protocols: -LLMNR -mDNS -DNSOverTLS DNSSEC=no/unsupported
+    resolv.conf mode: stub
+Fallback DNS Servers: 203.0.113.9
+
+Link 2 (eth0)
+    Current Scopes: DNS
+         Protocols: +DefaultRoute -LLMNR -mDNS -DNSOverTLS DNSSEC=no/unsupported
+Current DNS Server: 192.168.178.1
+       DNS Servers: 192.168.178.1 2001:db8::1
+                    198.51.100.53
+        DNS Domain: fritz.box
+
+Link 3 (wlan0)
+    Current Scopes: none
+         Protocols: -DefaultRoute -LLMNR -mDNS -DNSOverTLS DNSSEC=no/unsupported

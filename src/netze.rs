@@ -121,7 +121,8 @@ pub fn fingerprint(n: &NetInfo) -> Result<Fingerprint, String> {
             subnet: format!("{}/{}", s.network, s.prefix),
             bssid_hash: None,
         }),
-        _ => Err("Dieses Netz lässt sich nicht wiedererkennen: Ohne DHCP-Antwort (z. B. bei einem VPN-Tunnel) gibt es keinen Fingerabdruck. Verbinde dich direkt mit dem WLAN oder Kabel und versuche es noch mal.".into()),
+        _ if n.fest => Err("Netze mit fester Adresse kann Netzinfo noch nicht wiedererkennen, weil der Fingerabdruck die Antwort eines DHCP-Servers braucht.".into()),
+        _ => Err("Ohne DHCP-Antwort gibt es keinen Fingerabdruck, das ist zum Beispiel bei einem VPN-Tunnel so. Verbinde dich direkt mit dem WLAN oder Kabel und versuche es noch mal.".into()),
     }
 }
 
@@ -393,7 +394,7 @@ fn erkennen(info: NetInfo, path: Result<PathBuf, String>) -> Aktuell {
 /// First line of `netzinfo hier`.
 pub fn hier_hinweis(a: &Aktuell, explain_on: bool) {
     if let Some(e) = &a.erkennung_fehler {
-        println!("Netz nicht wiedererkennbar: {e}");
+        println!("{e}");
         return;
     }
     match &a.netz {
@@ -735,6 +736,23 @@ mod tests {
             ..NetInfo::default()
         };
         assert!(fingerprint(&vpn).unwrap_err().contains("Fingerabdruck"));
+    }
+
+    #[test]
+    fn static_address_gets_its_own_message() {
+        let fest = NetInfo {
+            interface: "eth0".into(),
+            fest: true,
+            ..NetInfo::default()
+        };
+        let e = fingerprint(&fest).unwrap_err();
+        assert!(e.contains("fester Adresse") && e.contains("DHCP"));
+        let vpn = fingerprint(&NetInfo::default()).unwrap_err();
+        assert!(vpn.contains("VPN") && !vpn.contains("fester Adresse"));
+        // the callers add their own lead-in, so the text must not repeat it
+        for t in [e, vpn] {
+            assert!(!t.contains("lässt sich nicht wiedererkennen"));
+        }
     }
 
     #[test]

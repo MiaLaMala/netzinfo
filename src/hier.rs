@@ -18,10 +18,18 @@ pub struct NetInfo {
     /// DNS servers the system really asks first (scutil --dns on macOS, resolv.conf on Linux), IPv4 and IPv6.
     pub system_dns: Vec<String>,
     pub domain: Option<String>,
+    /// The address is configured by hand (Linux: the kernel marks it permanent, no lease found).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fest: bool,
+    /// DHCP sources that were looked at without finding a lease (Linux), for `--erklaer`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dhcp_geprueft: Vec<String>,
 }
 
 /// Anzeige für Werte, die nur eine DHCP-Antwort liefert.
 const KEIN_DHCP: &str = "nicht ermittelt";
+/// Anzeige dafür, dass die Adresse von Hand eingestellt ist.
+const FEST: &str = "keiner, feste Adresse";
 
 fn show<T: std::fmt::Display>(v: Option<T>) -> String {
     v.map_or("unbekannt".into(), |v| v.to_string())
@@ -66,7 +74,9 @@ pub fn run(args: &[String], explain_on: bool) -> Result<(), String> {
     println!("IP-Adresse:    {}", show(n.ip));
     explain(
         explain_on,
-        if n.dhcp_server.is_some() {
+        if n.fest {
+            "Diese IPv4-Adresse ist fest eingestellt: Sie steht in der Konfiguration des Rechners, kein DHCP-Server hat sie geliehen und sie läuft nicht ab."
+        } else if n.dhcp_server.is_some() {
             "Die IPv4-Adresse hat dir der DHCP-Server geliehen. Im Heimnetz ist sie privat (10.x, 172.16 bis 172.31, 192.168.x) und wird per NAT ins Internet übersetzt."
         } else {
             "Zu dieser Adresse wurde keine DHCP-Antwort gefunden: Sie kommt von der Gegenstelle eines Tunnels (z. B. Tailscale oder WireGuard) oder ist fest eingestellt."
@@ -103,28 +113,40 @@ pub fn run(args: &[String], explain_on: bool) -> Result<(), String> {
         "Der Router (Gateway) ist die Tür aus dem eigenen Subnetz. Alles, was nicht im Subnetz liegt, schickt der Rechner an ihn.",
     );
     let dhcp = n.dhcp_server.is_some();
+    let keiner = if n.fest { FEST } else { KEIN_DHCP };
     println!(
         "DHCP-Server:   {}",
         if dhcp {
             show(n.dhcp_server)
         } else {
-            KEIN_DHCP.into()
+            keiner.into()
         }
     );
     explain(
         explain_on,
-        if dhcp {
+        if n.fest {
+            "Bei einer festen Adresse gibt es keinen DHCP-Server, den man fragen könnte. Wer die Adresse vergibt, steht in der Einstellung des Rechners selbst."
+        } else if dhcp {
             "Der DHCP-Server vergibt IP, Maske, Router und DNS (Ablauf DORA: Discover, Offer, Request, Ack). Im Heimnetz ist er fast immer der Router."
         } else {
-            "Eine DHCP-Antwort ließ sich nicht lesen. Das ist bei Tunneln und festen Adressen normal. Unter Linux liest Netzinfo sie nur mit systemd-networkd oder NetworkManager, bei anderen DHCP-Clients bleibt sie leer."
+            "Eine DHCP-Antwort ließ sich nicht lesen. Das ist bei Tunneln und festen Adressen normal. Unter Linux liest Netzinfo sie nur mit systemd-networkd, NetworkManager oder dhclient, bei anderen DHCP-Clients bleibt sie leer."
         },
     );
+    if !dhcp && !n.fest && !n.dhcp_geprueft.is_empty() {
+        explain(
+            explain_on,
+            &format!(
+                "Geprüft: {}; keine liefert einen Lease.",
+                n.dhcp_geprueft.join(", ")
+            ),
+        );
+    }
     println!(
         "DNS (DHCP):    {}",
         if dhcp {
             list(&n.dhcp_dns)
         } else {
-            KEIN_DHCP.into()
+            keiner.into()
         }
     );
     println!("DNS (System):  {}", list(&n.system_dns));
@@ -139,15 +161,15 @@ pub fn run(args: &[String], explain_on: bool) -> Result<(), String> {
     );
     println!(
         "Domain:        {}",
-        if !dhcp {
-            KEIN_DHCP.into()
-        } else {
-            n.domain.as_deref().unwrap_or("keine").to_string()
+        match (&n.domain, dhcp || n.fest) {
+            (Some(d), _) => d.clone(),
+            (None, true) => "keine".to_string(),
+            (None, false) => KEIN_DHCP.into(),
         }
     );
     explain(
         explain_on,
-        "Die Domain vom DHCP-Server wird an unvollständige Namen angehängt (Suchdomain).",
+        "Die Domain wird an unvollständige Namen angehängt (Suchdomain). Sie kommt vom DHCP-Server oder, ohne Lease, aus der Datei resolv.conf.",
     );
     crate::ipv6router::zeigen(&n, explain_on);
     Ok(())

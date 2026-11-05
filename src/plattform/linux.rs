@@ -1,12 +1,12 @@
 //! Linux: Default-Route aus `/proc/net/route`, Adresse über `getifaddrs`, DHCP aus
-//! systemd-networkd oder NetworkManager, DNS auch hinter systemd-resolved.
+//! systemd-networkd, NetworkManager oder dhclient, DNS auch hinter systemd-resolved.
 //! Kein Root, keine Shell. Die Parser sind reiner Text und laufen auf jedem System.
 
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
 use crate::hier::NetInfo;
 use crate::subnetz;
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::process::Command;
 
 #[derive(Debug, Default, PartialEq)]
@@ -86,6 +86,106 @@ fn parse_nmcli(text: &str) -> Lease {
     l
 }
 
+/// dhclient: `lease { ... }`-Blöcke, `dhclient.leases(5)`. Der letzte Block der Schnittstelle
+/// gewinnt. Passt `fixed-address` nicht zur aktuellen Adresse, ist der Block von einem anderen
+/// Netz übrig geblieben und zählt nicht.
+fn parse_dhclient(text: &str, schnittstelle: &str, ip: Option<Ipv4Addr>) -> Lease {
+    let mut beste = Lease::default();
+    let mut aktuell = Lease::default();
+    let (mut name, mut adresse) = (String::new(), None::<Ipv4Addr>);
+    for z in text.lines().map(str::trim) {
+        let z = z.strip_suffix(';').unwrap_or(z);
+        if z.starts_with("lease") && z.ends_with('{') {
+            aktuell = Lease::default();
+            (name, adresse) = (String::new(), None);
+        } else if z == "}" {
+            let passt =
+                name == schnittstelle && (ip.is_none() || adresse.is_none() || ip == adresse);
+            if passt {
+                beste = std::mem::take(&mut aktuell);
+            }
+        } else if let Some(v) = z.strip_prefix("interface ") {
+            name = v.trim_matches('"').to_string();
+        } else if let Some(v) = z.strip_prefix("fixed-address ") {
+            adresse = v.trim().parse().ok();
+        } else if let Some(v) = z.strip_prefix("option dhcp-server-identifier ") {
+            aktuell.server = v.trim().parse().ok();
+        } else if let Some(v) = z.strip_prefix("option domain-name-servers ") {
+            aktuell.dns = ips(&v.replace(',', " "));
+        } else if let Some(v) = z.strip_prefix("option domain-name ") {
+            aktuell.domain = Some(v.trim().trim_matches('"').to_string()).filter(|d| !d.is_empty());
+        }
+    }
+    beste
+}
+
+/// `/etc/resolv.conf`: `domain`, sonst das erste Wort von `search`.
+fn parse_resolv_domain(text: &str) -> Option<String> {
+    let wert = |schluessel: &str| {
+        text.lines().find_map(|l| {
+            let mut w = l.split_whitespace();
+            (w.next()? == schluessel).then(|| w.next().map(str::to_string))?
+        })
+    };
+    wert("domain").or_else(|| wert("search"))
+}
+
+/// `ip -o -4 addr show dev <if>`: `Some(true)`, wenn die Adresse `dynamic` ist (der Kernel
+/// führt für sie eine Laufzeit, so setzen DHCP-Clients sie), `Some(false)`, wenn sie dauerhaft
+/// eingestellt ist (`IFA_F_PERMANENT`), `None`, wenn die Adresse nicht in der Ausgabe steht.
+fn parse_ip_addr(text: &str, ip: Ipv4Addr) -> Option<bool> {
+    text.lines().find_map(|z| {
+        let w: Vec<&str> = z.split_whitespace().collect();
+        let i = w.iter().position(|t| *t == "inet")?;
+        let adr: Ipv4Addr = w.get(i + 1)?.split('/').next()?.parse().ok()?;
+        (adr == ip).then(|| w.contains(&"dynamic"))
+    })
+}
+
+/// systemd-resolved: `resolvectl status`, Zeilen `DNS Servers: a b`, weitere Adressen in
+/// eingerückten Folgezeilen. Format nach systemd `src/resolve/resolvectl.c`
+/// (Ausgabe von `status`) und der Manpage resolvectl(1). `Fallback DNS Servers` zählt nicht.
+fn parse_resolvectl(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut offen = false;
+    for z in text.lines() {
+        let (schluessel, wert) = z.split_once(':').unwrap_or(("", z));
+        let adressen = |t: &str| -> Vec<String> {
+            t.split_whitespace()
+                .filter(|w| w.parse::<IpAddr>().is_ok())
+                .map(str::to_string)
+                .collect()
+        };
+        let neu = if schluessel.trim() == "DNS Servers" {
+            offen = true;
+            adressen(wert)
+        } else if offen && !z.trim().is_empty() && adressen(z).len() == z.split_whitespace().count()
+        {
+            // continuation line: nothing but addresses
+            adressen(z)
+        } else {
+            offen = false;
+            Vec::new()
+        };
+        for a in neu {
+            if !out.contains(&a) {
+                out.push(a);
+            }
+        }
+    }
+    out
+}
+
+/// Kein Programm oder keine Antwort ist kein Fehler.
+fn ausgabe(programm: &str, args: &[&str]) -> Option<String> {
+    Command::new(programm)
+        .args(args)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+}
+
 /// IPv4-Adresse und Präfix der Schnittstelle, `None` ohne Adresse.
 fn adresse(schnittstelle: &str) -> Option<(Ipv4Addr, u8)> {
     let mut erste: *mut libc::ifaddrs = std::ptr::null_mut();
@@ -123,22 +223,45 @@ fn adresse(schnittstelle: &str) -> Option<(Ipv4Addr, u8)> {
     ergebnis
 }
 
-fn dhcp(schnittstelle: &str) -> Lease {
+/// Lease aus der ersten Quelle, die einen DHCP-Server nennt. Unlesbar heißt stumm.
+fn dhcp(schnittstelle: &str, ip: Option<Ipv4Addr>) -> Lease {
     let networkd = std::fs::read_to_string(format!("/sys/class/net/{schnittstelle}/ifindex"))
         .ok()
         .and_then(|i| {
             std::fs::read_to_string(format!("/run/systemd/netif/leases/{}", i.trim())).ok()
-        });
-    if let Some(t) = networkd {
-        return parse_networkd(&t);
-    }
-    // Kein nmcli oder keine Antwort ist kein Fehler.
-    Command::new("nmcli")
-        .args(["-t", "-f", "DHCP4", "device", "show", schnittstelle])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| parse_nmcli(&String::from_utf8_lossy(&o.stdout)))
+        })
+        .map(|t| parse_networkd(&t));
+    let nmcli = || {
+        ausgabe(
+            "nmcli",
+            &["-t", "-f", "DHCP4", "device", "show", schnittstelle],
+        )
+        .map(|t| parse_nmcli(&t))
+    };
+    let dhclient = || {
+        let mut dateien: Vec<_> = ["/var/lib/dhcp", "/var/lib/dhclient"]
+            .iter()
+            .filter_map(|d| std::fs::read_dir(d).ok())
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.extension().is_some_and(|e| e == "leases")
+                    && p.file_name()
+                        .is_some_and(|n| n.to_string_lossy().starts_with("dhclient"))
+            })
+            .collect();
+        dateien.sort();
+        dateien
+            .iter()
+            .filter_map(|p| std::fs::read_to_string(p).ok())
+            .map(|t| parse_dhclient(&t, schnittstelle, ip))
+            .find(|l| l.server.is_some())
+    };
+    networkd
+        .filter(|l| l.server.is_some())
+        .or_else(|| nmcli().filter(|l| l.server.is_some()))
+        .or_else(dhclient)
         .unwrap_or_default()
 }
 
@@ -148,7 +271,27 @@ pub fn lies_netzdaten() -> Result<NetInfo, String> {
         .and_then(|t| parse_route(&t))
         .ok_or("Kein Netz gefunden: Es gibt keine Default-Route. Verbinde den Rechner mit dem Netz und versuche es noch mal.")?;
     let adresse = adresse(&interface);
-    let lease = dhcp(&interface);
+    let mut lease = dhcp(&interface, adresse.map(|a| a.0));
+    let (mut fest, mut geprueft) = (false, Vec::new());
+    if lease.server.is_none() {
+        // Ohne Lease: Hat der Kernel die Adresse als dauerhaft markiert, ist sie von Hand
+        // gesetzt. Das gilt für networkd, NetworkManager und ifupdown gleich.
+        fest = adresse
+            .and_then(|(ip, _)| {
+                let t = ausgabe("ip", &["-o", "-4", "addr", "show", "dev", &interface])?;
+                parse_ip_addr(&t, ip)
+            })
+            .is_some_and(|dynamisch| !dynamisch);
+        if !fest {
+            geprueft = ["systemd-networkd", "NetworkManager", "dhclient"]
+                .map(String::from)
+                .to_vec();
+        }
+        // Nur ohne Lease: Mit Lease bliebe der Fingerabdruck sonst nicht derselbe wie bisher.
+        lease.domain = lease.domain.or_else(|| {
+            parse_resolv_domain(&std::fs::read_to_string("/etc/resolv.conf").unwrap_or_default())
+        });
+    }
     Ok(NetInfo {
         ip: adresse.map(|a| a.0),
         subnet: adresse.and_then(|(ip, p)| subnetz::calc(ip, p).ok()),
@@ -158,6 +301,8 @@ pub fn lies_netzdaten() -> Result<NetInfo, String> {
         system_dns: system_dns(),
         domain: lease.domain,
         interface,
+        fest,
+        dhcp_geprueft: geprueft,
     })
 }
 
@@ -166,7 +311,15 @@ pub fn lies_netzdaten() -> Result<NetInfo, String> {
 pub fn system_dns() -> Vec<String> {
     system_dns_aus(
         &std::fs::read_to_string("/etc/resolv.conf").unwrap_or_default(),
-        || std::fs::read_to_string("/run/systemd/resolve/resolv.conf").ok(),
+        || {
+            std::fs::read_to_string("/run/systemd/resolve/resolv.conf")
+                .ok()
+                .or_else(|| {
+                    // no resolv.conf from systemd-resolved: ask `resolvectl` if it exists
+                    let l = parse_resolvectl(&ausgabe("resolvectl", &["status"])?);
+                    Some(l.iter().map(|s| format!("nameserver {s}\n")).collect())
+                })
+        },
     )
 }
 
@@ -200,6 +353,9 @@ mod tests {
     const NETWORKD: &str = include_str!("../../testdata/linux/networkd_lease");
     const NMCLI: &str = include_str!("../../testdata/linux/nmcli_dhcp4");
     const STUB: &str = include_str!("../../testdata/linux/resolv_stub.conf");
+    const DHCLIENT: &str = include_str!("../../testdata/linux/dhclient.leases");
+    const IP_ADDR: &str = include_str!("../../testdata/linux/ip_addr");
+    const RESOLVECTL: &str = include_str!("../../testdata/linux/resolvectl_status");
     const ECHT: &str = include_str!("../../testdata/linux/resolved_resolv.conf");
 
     #[test]
@@ -257,5 +413,60 @@ mod tests {
         );
         // fehlt die Ersatzdatei, bleibt der Stub
         assert_eq!(system_dns_aus(STUB, || None), ["127.0.0.53"]);
+    }
+
+    #[test]
+    fn dhclient_neuester_block_der_schnittstelle_gewinnt() {
+        let ip = "192.168.178.20".parse().ok();
+        let l = parse_dhclient(DHCLIENT, "eth0", ip);
+        assert_eq!(l.server, "192.168.178.1".parse().ok());
+        assert_eq!(l.domain.as_deref(), Some("fritz.box"));
+        assert_eq!(l.dns.len(), 2);
+        // other interface, and no block at all
+        assert_eq!(
+            parse_dhclient(DHCLIENT, "wlan0", None).server,
+            "192.0.2.2".parse().ok()
+        );
+        assert_eq!(parse_dhclient(DHCLIENT, "eth9", None), Lease::default());
+        assert_eq!(parse_dhclient("", "eth0", None), Lease::default());
+    }
+
+    #[test]
+    fn dhclient_block_mit_fremder_adresse_zaehlt_nicht() {
+        let alt = "192.0.2.99".parse().ok();
+        assert_eq!(parse_dhclient(DHCLIENT, "eth0", alt), Lease::default());
+    }
+
+    #[test]
+    fn domain_aus_resolv_conf() {
+        assert_eq!(
+            parse_resolv_domain("search a.example b.example\ndomain fritz.box\n").as_deref(),
+            Some("fritz.box")
+        );
+        assert_eq!(
+            parse_resolv_domain("nameserver 192.0.2.1\nsearch a.example b.example\n").as_deref(),
+            Some("a.example")
+        );
+        assert_eq!(parse_resolv_domain("nameserver 192.0.2.1\nsearch\n"), None);
+        assert_eq!(parse_resolv_domain(""), None);
+    }
+
+    #[test]
+    fn feste_und_dynamische_adresse() {
+        let ip = |s: &str| s.parse().unwrap();
+        assert_eq!(parse_ip_addr(IP_ADDR, ip("192.168.178.20")), Some(true));
+        assert_eq!(parse_ip_addr(IP_ADDR, ip("192.0.2.10")), Some(false));
+        assert_eq!(parse_ip_addr(IP_ADDR, ip("198.51.100.7")), Some(false));
+        assert_eq!(parse_ip_addr(IP_ADDR, ip("203.0.113.1")), None);
+        assert_eq!(parse_ip_addr("", ip("192.0.2.10")), None);
+    }
+
+    #[test]
+    fn resolvectl_status_liest_nur_dns_servers() {
+        assert_eq!(
+            parse_resolvectl(RESOLVECTL),
+            ["192.168.178.1", "2001:db8::1", "198.51.100.53"]
+        );
+        assert!(parse_resolvectl("").is_empty());
     }
 }

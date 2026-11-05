@@ -1,0 +1,39 @@
+# The format of this file is documented in the dhclient.leases(5) manual page.
+# This lease file was written by isc-dhclient-4.4.3-P1
+
+lease {
+  interface "eth0";
+  fixed-address 192.168.178.20;
+  option subnet-mask 255.255.255.0;
+  option dhcp-lease-time 864000;
+  option routers 192.168.178.1;
+  option dhcp-message-type 5;
+  option dhcp-server-identifier 192.168.178.1;
+  option domain-name-servers 192.168.178.1;
+  option host-name "rechner";
+  option domain-name "alt.example";
+  renew 1 2026/11/02 08:00:00;
+  rebind 4 2026/11/05 08:00:00;
+  expire 5 2026/11/06 08:00:00;
+}
+lease {
+  interface "wlan0";
+  fixed-address 192.0.2.77;
+  option dhcp-server-identifier 192.0.2.2;
+  option domain-name-servers 192.0.2.53;
+}
+lease {
+  interface "eth0";
+  fixed-address 192.168.178.20;
+  option subnet-mask 255.255.255.0;
+  option dhcp-lease-time 864000;
+  option routers 192.168.178.1;
+  option dhcp-message-type 5;
+  option dhcp-server-identifier 192.168.178.1;
+  option domain-name-servers 192.168.178.1,198.51.100.53;
+  option host-name "rechner";
+  option domain-name "fritz.box";
+  renew 3 2026/11/04 20:00:00;
+  rebind 6 2026/11/07 08:00:00;
+  expire 6 2026/11/07 20:00:00;
+}

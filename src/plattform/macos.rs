@@ -151,6 +151,7 @@ pub fn lies_netzdaten() -> Result<NetInfo, String> {
         dhcp_dns: lease.dns,
         system_dns,
         domain: lease.domain,
+        ..NetInfo::default()
     })
 }
 

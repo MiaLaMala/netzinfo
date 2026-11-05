@@ -134,7 +134,7 @@
         if (kannPruefen) {
           pruefKnopf.setAttribute('aria-disabled', String(z.laeuft)); // nicht disabled: sonst fällt der Fokus an den Seitenanfang
           pruefKnopf.classList.toggle('haupt', !l.portal); // nur eine Hauptaktion: mit Anmeldehinweis führt dessen Knopf
-          pruefKnopf.replaceChildren(z.laeuft ? 'Prüfe …' : 'Jetzt prüfen', ...(z.laeuft ? [] : [el('span', { class: 'kbd', 'aria-hidden': 'true', text: '⌘R' })]));
+          pruefKnopf.replaceChildren(z.laeuft ? 'Prüfe …' : 'Jetzt prüfen', ...(z.laeuft ? [] : [el('span', { class: 'kbd', 'aria-hidden': 'true', text: Netz.taste('R') })]));
           aktion.hidden = !!l.fehler; // dort trägt die Fehlerkarte den Knopf
         }
         if (hatteFokus) kopf.querySelector('h2').focus({ preventScroll: true });
@@ -144,7 +144,7 @@
       const ort = funk ? Netz.dieses.ortKarte(await Netz.dieses.mitFrist(Netz.invoke('ort_status'), 10000).catch(() => 'Erlaubt')) : null;
       wurzel.append(ansage, kopf, belege, werte(d, funk, vpn), aktion, ort ? el('div', { class: 'eingebettet', 'data-ansicht': 'dieses-netz' }, ort) : '', details); // append schreibt null als Text
       if (kannPruefen) aktion.append(pruefKnopf);
-      else if (d.erkennung_fehler) aktion.append(el('button', { class: 'knopf haupt', type: 'button', onclick: () => Netz.neuLaden() }, 'Neu lesen', el('span', { class: 'kbd', 'aria-hidden': 'true', text: '⌘R' })));
+      else if (d.erkennung_fehler) aktion.append(el('button', { class: 'knopf haupt', type: 'button', onclick: () => Netz.neuLaden() }, 'Neu lesen', el('span', { class: 'kbd', 'aria-hidden': 'true', text: Netz.taste('R') })));
       else aktion.append(Netz.dieses.offenKnopf());
 
       // Alles Übrige: beide alten Ansichten ohne Kopf und ohne das, was oben schon steht.
@@ -163,7 +163,7 @@
 
   // ⌘R: bei bekanntem Netz „Jetzt prüfen“, sonst neu lesen. Läuft vor dem gemeinsamen Handler in app.js.
   document.addEventListener('keydown', (e) => {
-    if (!(e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'r')
+    if (!(Netz.istTaste(e) && e.key.toLowerCase() === 'r')
       || document.getElementById('tab-uebersicht')?.getAttribute('aria-selected') !== 'true') return;
     e.preventDefault();
     e.stopImmediatePropagation();

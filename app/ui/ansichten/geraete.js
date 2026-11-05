@@ -371,7 +371,7 @@
     if (!r.erster_lauf) teile.push(`${r.neu.length} neu`, `${r.verschwunden.length} verschwunden`);
     const kopf = status(r.geraete.length ? 'gruen' : 'orange', teile.join(' · '));
     const erster = r.erster_lauf && el('p', { class: 'fuss', text: 'Erster Lauf in diesem Netz: Das ist der Ausgangsstand, nichts ist „neu“. Ab dem nächsten Lauf siehst du, was dazukommt und was fehlt.' });
-    return [kopf, erster, !r.geraete.length && el('p', { class: 'fuss', text: 'Keine Geräte gefunden. Hat dir macOS „Lokales Netzwerk“ für Netzinfo verweigert? Schalte es unter Systemeinstellungen > Datenschutz & Sicherheit > Lokales Netzwerk ein und such noch mal.' })];
+    return [kopf, erster, !r.geraete.length && el('p', { class: 'fuss', text: Netz.mac ? 'Keine Geräte gefunden. Hat dir macOS „Lokales Netzwerk“ für Netzinfo verweigert? Schalte es unter Systemeinstellungen > Datenschutz & Sicherheit > Lokales Netzwerk ein und such noch mal.' : 'Keine Geräte gefunden. Prüfe, ob eine Firewall das Absuchen blockt, und such noch mal.' })];
   }
 
   Netz.registriere({
@@ -386,7 +386,7 @@
       const fortschritt = el('p', { class: 'fuss fortschritt' });
       const ort = el('div', { class: 'ergebnis' });
       // Der Systemdialog kommt erst beim ersten Absuchen: Vorher steht hier, wofür und was ohne die Freigabe fehlt.
-      const hinweis = el('p', { class: 'fuss aktion-hinweis', text: 'Das Absuchen tastet das Netz ab. Beim ersten Mal fragt macOS, ob Netzinfo im „Lokalen Netzwerk“ suchen darf. Erlaube es, sonst findet die Suche keine Geräte.' });
+      const hinweis = el('p', { class: 'fuss aktion-hinweis', text: Netz.mac ? 'Das Absuchen tastet das Netz ab. Beim ersten Mal fragt macOS, ob Netzinfo im „Lokalen Netzwerk“ suchen darf. Erlaube es, sonst findet die Suche keine Geräte.' : 'Das Absuchen tastet das Netz ab.' });
       // Ohne „meins“ lehnt der Kern ab: Das steht vorher da, und der erste Schritt ist das Markieren, nicht eine Suche, die scheitert.
       let erst = null;
       mitLimit(Netz.invoke('dieses_netz'), 10000).then((d) => {

@@ -1,0 +1,20 @@
+{
+  "bundle": {
+    "targets": [
+      "deb",
+      "appimage"
+    ],
+    "category": "Utility",
+    "shortDescription": "Merkt sich jedes Netz und meldet, was anders ist",
+    "longDescription": "Netzinfo merkt sich jedes Netz, in dem dein Rechner war, und meldet, was anders ist: Schnittstelle, Router, DNS, Geräte im Netz und Tempo. Alles bleibt auf deinem Rechner.",
+    "linux": {
+      "deb": {
+        "section": "net"
+      }
+    },
+    "publisher": "Mia Grünwald",
+    "resources": {
+      "Credits.rtf": null
+    }
+  }
+}

@@ -647,6 +647,8 @@
       try {
         v = await frist('last_vorab', undefined, 15);
         hinweis.textContent = v.hinweis ?? '';
+        // Apples networkQuality gibt es nur auf dem Mac: Knopf und Hinweis ehrlich machen.
+        if (!Netz.mac) { hinweis.textContent = 'Die Messung unter Last gibt es unter Linux noch nicht.'; knopf.disabled = true; }
         hotspot = !!v.hotspot;
         frage = v.hotspot_frage ?? '';
         zeigeVerlauf(v.verlauf ?? []);
@@ -726,7 +728,13 @@
         if (!Array.isArray(r?.liste) || !Array.isArray(r.aussetzer)) throw 'Das Störungsprotokoll kam in einer unbekannten Form an. Starte die App neu; hilft das nicht, melde es als Fehler auf GitHub.';
         d = r;
         zeichne();
-      } catch (f) { d = null; knopf.hidden = true; ort.replaceChildren(fehlerAus(f, lade)); } // auch ein Fehler beim Zeichnen: sonst bliebe „Lädt …“ stehen
+      } catch (f) {
+        d = null; knopf.hidden = true; // auch ein Fehler beim Zeichnen: sonst bliebe „Lädt …“ stehen
+        // Ungemerktes Netz ist kein Fehler: Erneut versuchen hilft da nicht, Merken schon.
+        ort.replaceChildren(...(f?.art === 'nicht_gemerkt'
+          ? [status('grau', 'Noch nichts aufgezeichnet'), el('p', { class: 'fuss', text: 'Netzinfo zeichnet nur in gemerkten Netzen auf. Merke das Netz in der Übersicht.' })]
+          : [fehlerAus(f, lade)]));
+      }
     };
     lade();
     return {

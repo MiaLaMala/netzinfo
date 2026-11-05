@@ -525,13 +525,15 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .map(|app| {
+            // Click on the Dock icon with the window closed: bring it back. Only macOS has that event.
+            #[cfg(target_os = "macos")]
             app.run(|app, ev| {
-                // Click on the Dock icon with the window closed: bring it back.
-                #[cfg(target_os = "macos")]
                 if let tauri::RunEvent::Reopen { .. } = ev {
                     wache::fenster_oeffnen(app);
                 }
             });
+            #[cfg(not(target_os = "macos"))]
+            app.run(|_, _| {});
         });
     if let Err(e) = r {
         eprintln!("Die App ließ sich nicht starten: {e}");

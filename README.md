@@ -6,13 +6,13 @@
 
 <p align="center">
   <b>Sagt dir, was in einem Netz anders ist als beim letzten Mal.</b><br>
-  Mac-App und Kommandozeile, auf Deutsch, ohne Konto und ohne Telemetrie.
+  Mac-App, Linux-App (neu, wenig erprobt) und Kommandozeile, auf Deutsch, ohne Konto und ohne Telemetrie.
 </p>
 
 <p align="center">
   <a href="https://github.com/MiaLaMala/netzinfo/actions/workflows/ci.yml"><img src="https://github.com/MiaLaMala/netzinfo/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/macOS-13%2B%20%C2%B7%20Apple%20Silicon-6e6e73?logo=apple&logoColor=white" alt="macOS 13 oder neuer, Apple Silicon">
-  <img src="https://img.shields.io/badge/Linux-Kommandozeile-6e6e73?logo=linux&logoColor=white" alt="Linux: Kommandozeile">
+  <img src="https://img.shields.io/badge/Linux-App_und_Kommandozeile-6e6e73?logo=linux&logoColor=white" alt="Linux: App und Kommandozeile">
   <a href="LICENSE"><img src="https://img.shields.io/badge/Lizenz-MIT-1d5fd8" alt="Lizenz MIT"></a>
 </p>
 
@@ -34,7 +34,7 @@
 
 `ifconfig`, Wireshark und die Oberfläche der Fritz!Box zeigen ein Netz, wie es jetzt ist. Netzinfo merkt sich jedes Netz, in dem du warst (WG, Arbeit, Schule, Hotspot), und vergleicht beim nächsten Besuch: Ist das derselbe Router? Antwortet DNS wie immer? Hat das Zertifikat von github.com plötzlich jemand anderes unterschrieben? Ist ein Gerät dazugekommen?
 
-Die Mac-App zeigt das in vier Ansichten, die Kommandozeile `netzinfo` läuft auch unter Linux. Mit „Erklären“ (App) oder `--erklaer` (Terminal) sagt jeder Schritt auf Deutsch, was gerade im Netz passiert, passend zum Stoff der IHK-Prüfung für Fachinformatiker.
+Die App zeigt das in vier Ansichten (Mac, unter Linux mit Lücken), die Kommandozeile `netzinfo` läuft auch unter Linux. Mit „Erklären“ (App) oder `--erklaer` (Terminal) sagt jeder Schritt auf Deutsch, was gerade im Netz passiert, passend zum Stoff der IHK-Prüfung für Fachinformatiker.
 
 ## Was Netzinfo kann
 
@@ -92,7 +92,13 @@ Unter [Releases](https://github.com/MiaLaMala/netzinfo/releases) liegen die App 
 
 Im Terminal gehen Schritt 2 und 3 auch so: `xattr -dr com.apple.quarantine /Applications/Netzinfo.app`, genauso für das entpackte `netzinfo`. Nach einem Update kann macOS „Lokales Netzwerk“ noch einmal abfragen, weil die Ad-hoc-Signatur bei jedem Build anders ist.
 
-Unter Linux gibt es die Kommandozeile, nicht die App: `netzinfo-<tag>-x86_64-unknown-linux-musl.tar.gz` für PCs und Server, `netzinfo-<tag>-aarch64-unknown-linux-musl.tar.gz` für den Raspberry Pi mit 64-Bit-System. Beide sind statisch gebaut und laufen auf jeder Distribution. Entpacken und `./netzinfo hier` starten, der Ordner `ipdb` muss neben dem Programm liegen. Was unter Linux fehlt, steht bei [Wie es gebaut ist](#wie-es-gebaut-ist).
+**Linux-App** (nur x86_64): `Netzinfo_<version>_amd64.deb` und `Netzinfo_<version>_amd64.AppImage`.
+
+- `.deb` (Debian 12, Ubuntu 22.04 oder neuer): `sudo apt install ./Netzinfo_<version>_amd64.deb`. Apt holt WebKitGTK 4.1 und GTK 3 selbst nach, gestartet wird `netzinfo-app`.
+- AppImage: `chmod +x Netzinfo_<version>_amd64.AppImage && ./Netzinfo_<version>_amd64.AppImage`. Es braucht FUSE 2, das neuere Ubuntu-Versionen nicht immer mitbringen: unter Debian 12 und Ubuntu 22.04 `sudo apt install libfuse2`, unter Ubuntu 24.04 und Debian 13 `sudo apt install libfuse2t64`. Ohne FUSE geht `./Netzinfo_<version>_amd64.AppImage --appimage-extract-and-run`.
+- Gebaut wird auf Ubuntu 22.04. Ein System mit älterer glibc als dort startet die App nicht. Was die Linux-App kann und was nicht, steht bei [Wie es gebaut ist](#wie-es-gebaut-ist).
+
+Die Kommandozeile für Linux: `netzinfo-<tag>-x86_64-unknown-linux-musl.tar.gz` für PCs und Server, `netzinfo-<tag>-aarch64-unknown-linux-musl.tar.gz` für den Raspberry Pi mit 64-Bit-System. Beide sind statisch gebaut und laufen auf jeder Distribution. Entpacken und `./netzinfo hier` starten, der Ordner `ipdb` muss neben dem Programm liegen. Was unter Linux fehlt, steht bei [Wie es gebaut ist](#wie-es-gebaut-ist).
 
 ## Kommandozeile
 
@@ -247,7 +253,7 @@ Die `.dmg` baut wie im Release `cd app && npx --yes @tauri-apps/cli@2.12.4 build
 
 ```
 src/            Kern als Bibliothek und Kommandozeile, Rust
-app/src/        Mac-App mit Tauri 2, Menüleisten-Wache
+app/src/        App mit Tauri 2 (Mac, Linux), Menüleisten-Wache
 app/ui/         Oberfläche: HTML, CSS und JavaScript ohne npm und ohne Framework
 app/vorschau/   Beispieldaten für app/vorschau.html
 data/           Herstellerliste aus dem IEEE-Register
@@ -258,17 +264,18 @@ testdata/       Aufgezeichnete Antworten für die Tests
 
 - Rund 29 000 Zeilen Rust in 55 Dateien, über 400 Tests. Parser und Bewertungsregeln werden mit aufgezeichneten Ausgaben echter Werkzeuge getestet, Netzwerkcode gegen lokale Testserver.
 - Wenige Abhängigkeiten: rustls und ring für TLS, socket2 für Ping und Traceroute ohne Root, serde für die gespeicherten Daten, maxminddb für die Offline-Datenbanken. DNS, Bonjour, SSDP und UPnP spricht Netzinfo selbst.
-- Die CI prüft jeden Pull Request unter Linux und auf dem Mac mit `cargo fmt`, `cargo clippy -D warnings`, den Tests und `cargo deny` (Lizenzen, bekannte Lücken). Ein Tag baut die App als `.dmg` und die Kommandozeile als Archiv mit Prüfsummen.
+- Die CI prüft jeden Pull Request unter Linux und auf dem Mac mit `cargo fmt`, `cargo clippy -D warnings`, den Tests und `cargo deny` (Lizenzen, bekannte Lücken). Ein Tag baut die Mac-App als `.dmg`, die Linux-App als `.deb` und AppImage (auf Ubuntu 22.04) und die Kommandozeile als Archiv, dazu Prüfsummen.
 - Der Kern baut auch unter Linux, die CI läuft dort. Was nur auf macOS geht (CoreWLAN, libproc), hat unter Linux eine eigene Variante oder einen klaren Fehlersatz.
-- Unter Linux liest Netzinfo Default-Route, Adresse und DHCP ohne Root (`/proc/net/route`, `getifaddrs`, systemd-networkd oder NetworkManager), danach laufen `hier`, `dns`, `pruefen`, `merken`, `messen`, `diagnose`, `mtu`, `pfad`, `bonjour`, `upnp`, `router` und `wlan` (mit `iw`). `geraete` läuft ohne `--nachbarn`.
-- Nur auf dem Mac gehen `offen`, `verbindungen`, `woher`, `traffic`, `last`, `wlan --umfeld`, `geraete --nachbarn`, `proxy`, `fritzbox` (Schlüsselbund) und die Standortfreigabe, weil sie libproc, CoreWLAN, `nettop`, `networkQuality` oder `scutil` brauchen. Sie melden das mit einem klaren Satz. Die Linux-Fassung ist bisher nur in der CI und im Release-Probelauf gelaufen, nicht von Hand auf einem Server oder Raspberry Pi.
+- Unter Linux liest Netzinfo Default-Route, Adresse und DHCP ohne Root (`/proc/net/route`, `getifaddrs`, den Lease aus systemd-networkd, NetworkManager oder dhclient). Wer dhcpcd, udhcpc oder einen anderen Client nutzt, bekommt keine Lease-Angaben. Die DNS-Server kommen aus `resolv.conf`, hinter dem Stub von systemd-resolved aus dessen eigener Datei oder `resolvectl status`, die Domain ohne Lease aus `domain` oder dem ersten `search`. Eine fest eingestellte Adresse zeigt `hier` als „feste Adresse“; wiedererkennen kann Netzinfo solche Netze noch nicht, weil der Fingerabdruck die Antwort eines DHCP-Servers braucht. Danach laufen `hier`, `dns`, `pruefen`, `merken`, `messen`, `diagnose`, `mtu`, `pfad`, `bonjour`, `upnp`, `router` und `wlan` (mit `iw`). `geraete` läuft ohne `--nachbarn`.
+- Nur auf dem Mac gehen `offen`, `verbindungen`, `woher`, `traffic`, `last`, `wlan --umfeld`, `geraete --nachbarn`, `proxy`, `fritzbox` (Schlüsselbund) und die Standortfreigabe, weil sie libproc, CoreWLAN, `nettop`, `networkQuality` oder `scutil` brauchen. Sie melden das mit einem klaren Satz. Die Linux-Fassung ist bisher nur in der CI und im Release-Probelauf gelaufen, nicht von Hand auf einem Raspberry Pi.
+- Die Linux-App (`.deb`, AppImage) zeigt dieselben vier Ansichten und die Einstellungen in einem normalen Fenster ohne Transparenz. Sie lief bisher nur auf einem Debian-13-Server unter Xvfb (kabelgebunden, ohne WLAN, ohne Desktop), nicht auf einem echten Desktop. Unter Linux fehlen: Verbindungen und „Lauschend“ (offene Ports), „Unter Last“ und der Tempo-Test, WLAN-Umfeld, Standortfreigabe, Fritz!Box-Zugang (braucht den macOS-Schlüsselbund), und der Start mit der Anmeldung. Diese Stellen sagen „Das gibt es unter Linux noch nicht.“ statt eines Fehlers. Tastenkürzel gelten mit Strg statt ⌘. Die Wache (Tray-Symbol, Mitteilungen bei einem Netzwechsel) ist für den Mac gebaut und unter Linux nicht geprüft; ebenso der Aufbau des Fenstermenüs.
 - Die Strichbilder der leeren Zustände sind mit Higgsfield (Recraft V4.1) erzeugt, als ein einziges Bild, damit der Strich überall gleich ist. Danach sind sie von Hand zerlegt und bekommen ihre Farben aus dem CSS, damit sie im Dunkelmodus passen.
 
 Wie man mitmacht, steht in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## English in short
 
-Netzinfo remembers every network your Mac has been on and tells you when one behaves differently than last time: a new router, changed DNS answers, TLS interception, new devices. `ifconfig` or Wireshark show a network as it is right now; Netzinfo compares it with your last visit. It comes as a Mac app (Tauri, Apple Silicon, macOS 13+) and as a command line tool `netzinfo` for macOS and Linux (x86_64 and arm64), built on the same Rust core. **The interface, the output and the docs are in German**; `--erklaer` (or the “Erklären” switch in the app) explains in plain German what each step does on the wire. Downloads are on the [Releases page](https://github.com/MiaLaMala/netzinfo/releases); the app is only ad-hoc signed, see “Installieren”. Scanning only targets private addresses on networks you marked as yours. No telemetry, no account, MIT licensed.
+Netzinfo remembers every network your Mac has been on and tells you when one behaves differently than last time: a new router, changed DNS answers, TLS interception, new devices. `ifconfig` or Wireshark show a network as it is right now; Netzinfo compares it with your last visit. It comes as a Mac app (Tauri, Apple Silicon, macOS 13+), as a Linux app (.deb and AppImage, x86_64, fewer features) and as a command line tool `netzinfo` for macOS and Linux (x86_64 and arm64), built on the same Rust core. **The interface, the output and the docs are in German**; `--erklaer` (or the “Erklären” switch in the app) explains in plain German what each step does on the wire. Downloads are on the [Releases page](https://github.com/MiaLaMala/netzinfo/releases); the app is only ad-hoc signed, see “Installieren”. Scanning only targets private addresses on networks you marked as yours. No telemetry, no account, MIT licensed.
 
 ## Lizenz
 

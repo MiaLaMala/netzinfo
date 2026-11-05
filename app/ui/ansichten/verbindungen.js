@@ -225,7 +225,8 @@
       aufmerksam ||= netz > 0;
       teile.push(netz ? `${mal(netz, 'Programm ist', 'Programme sind')} fürs Netz erreichbar.` : 'Kein Programm ist fürs Netz erreichbar.');
     }
-    return { text: teile.join(' ') || 'Verbindungen ließen sich nicht lesen.', farbe: aufmerksam ? 'orange' : 'gruen' };
+    if (!teile.length) return { text: Netz.mac ? 'Verbindungen ließen sich nicht lesen.' : 'Die Liste der Verbindungen gibt es unter Linux noch nicht.', farbe: 'grau' };
+    return { text: teile.join(' '), farbe: aufmerksam ? 'orange' : 'gruen' };
   }
 
   const SEGMENTE = [['ausgehend', 'Ausgehend'], ['lauschend', 'Lauschend']];

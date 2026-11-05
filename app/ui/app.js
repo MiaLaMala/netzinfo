@@ -77,12 +77,22 @@
   // Core sentences name CLI commands in `backticks`: show them as code, not as raw marks.
   const mitCode = (satz) => satz.split('`').map((t, i) => (i % 2 ? el('code', { text: t }) : t));
 
+  // Plattform einmal aus dem Webview lesen: Tastenkürzel und Hinweise unterscheiden sich zwischen Mac und Linux.
+  const mac = /Mac/i.test(navigator.platform || navigator.userAgent || '');
+  const taste = (k) => (mac ? `⌘${k}` : `Strg+${k}`);
+  const istTaste = (e) => (mac ? e.metaKey : e.ctrlKey) && !e.shiftKey && !e.altKey;
+  // Sätze des Kerns für Funktionen, die es nur auf dem Mac gibt: unter Linux ein ruhiger Hinweis statt einer Fehlerkarte.
+  const NUR_MAC = /gibt es (bisher |noch )?nur|nur (unter macOS|auf dem Mac|die Mac-App|im macOS)|noch nicht unterstützt|unter Linux noch nicht|läuft nur auf dem Mac/;
+  const nurMac = (satz) => !mac && NUR_MAC.test(typeof satz === 'string' ? satz : text(satz));
+  const LINUX_NOCH_NICHT = 'Das gibt es unter Linux noch nicht.';
+
   const meldung = (satz, farbe = 'rot') =>
     el('p', { class: 'meldung', role: 'alert' }, el('span', { class: `punkt ${farbe}` }), el('span', {}, mitCode(typeof satz === 'string' ? satz : text(satz))));
 
   // Fehler mit Ausweg: Satz plus „Erneut versuchen“ (lädt die Ansicht neu). `nochmal` ersetzt das Neuladen, z. B. für eine einzelne Messung.
-  const fehlerKarte = (satz, nochmal) =>
-    el('div', { class: 'fehler-karte' }, meldung(satz, 'rot'),
+  const fehlerKarte = (satz, nochmal) => nurMac(satz)
+    ? el('div', { class: 'fehler-karte' }, meldung(LINUX_NOCH_NICHT, 'grau'))
+    : el('div', { class: 'fehler-karte' }, meldung(satz, 'rot'),
       el('button', {
         class: 'knopf', type: 'button', text: 'Erneut versuchen',
         // Zeichnet der Versuch den Inhalt neu, hängt der Fokus sonst am entfernten Knopf.
@@ -174,7 +184,7 @@
       'aria-selected': 'false', tabindex: '-1',
       // Ein Klick holt den Fokus in die Seitenleiste (WebKit tut das bei Knöpfen nicht), sonst gehen die Pfeiltasten ins Leere.
       onclick: () => zeige(a.id, { fokus: true }),
-      title: `${a.titel} (⌘${reihe.indexOf(a) + 1})`, 'aria-keyshortcuts': `Meta+${reihe.indexOf(a) + 1}`,
+      title: `${a.titel} (${taste(reihe.indexOf(a) + 1)})`, 'aria-keyshortcuts': `${mac ? 'Meta' : 'Control'}+${reihe.indexOf(a) + 1}`,
     }, el('span', { html: a.icon }), el('span', { text: a.titel }));
     const rest = new Set(ansichten.filter((a) => !a.teil));
     const bloecke = abschnitte.map(([titel, ids]) => {
@@ -193,7 +203,7 @@
     }
     // Abgesetzt unten, ein Knopf statt eines Tabs: Die Einstellungen sind kein Bereich, sondern ein Ort wie in jeder Mac-App.
     menue.parentElement.append(el('div', { class: 'unten' }, el('button', {
-      class: 'eintrag', id: 'einstellungen', type: 'button', title: 'Einstellungen (⌘,)', 'aria-keyshortcuts': 'Meta+Comma',
+      class: 'eintrag', id: 'einstellungen', type: 'button', title: `Einstellungen (${taste(',')})`, 'aria-keyshortcuts': `${mac ? 'Meta' : 'Control'}+Comma`,
       onclick: () => zeige(EINSTELLUNGEN, { fokus: true }),
     }, el('span', { html: icons.zahnrad }), el('span', { text: 'Einstellungen' }))));
     menue.addEventListener('keydown', (e) => {
@@ -327,11 +337,13 @@
     window.addEventListener('error', (e) => fang(e, 'error'));
     // Only events, no initial check: unknown focus (e.g. headless Chrome) looks active.
     for (const ev of ['focus', 'blur']) window.addEventListener(ev, () => document.documentElement.classList.toggle('inaktiv', ev === 'blur'));
+    document.getElementById('aktualisieren-taste').textContent = taste('R');
+    document.getElementById('aktualisieren').title = `Aktualisieren (${taste('R')})`;
     baueMenue();
     erklaermodus();
     document.getElementById('aktualisieren').addEventListener('click', neuLaden);
     document.addEventListener('keydown', (e) => {
-      if (!e.metaKey || e.shiftKey || e.altKey) return;
+      if (!istTaste(e)) return;
       // ⌘1 bis ⌘4: Ansichten in der Reihenfolge der Seitenleiste.
       if (/^[1-4]$/.test(e.key) && reihe[e.key - 1]) { e.preventDefault(); zeige(reihe[e.key - 1].id, { fokus: !!document.activeElement?.closest('nav') }); }
       else if (e.key.toLowerCase() === 'r') { e.preventDefault(); neuLaden(); }
@@ -343,7 +355,7 @@
   }
 
   window.Netz = {
-    invoke, frist, el, icons, zeit, text, meldung, fehlerKarte, status, gruppe, zeile, leerZustand, neuLaden, zumKopf, woher, bestaetigung,
+    invoke, frist, el, icons, mac, taste, istTaste, nurMac, LINUX_NOCH_NICHT, zeit, text, meldung, fehlerKarte, status, gruppe, zeile, leerZustand, neuLaden, zumKopf, woher, bestaetigung,
     einbetten, zeige, einstellungen,
     registriere: (a) => ansichten.push(a),
   };

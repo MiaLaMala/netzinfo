@@ -20,7 +20,7 @@ webpki-roots = { version = "1.0.11", default-features = false }
 x509-cert = { version = "0.3.0", default-features = false }
 socket2 = { version = "0.6.5", features = ["all"] }
 libc = "0.2.191"
-maxminddb = { version = "0.32.0", default-features = false }
+maxminddb = { version = "0.33.0", default-features = false }
 md-5 = { version = "0.11.0", default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]
